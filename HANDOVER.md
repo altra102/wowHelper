@@ -13,7 +13,7 @@
 1. Startbildschirm mit Rollenwahl: Nahkampf oder Fernkampf. Die Leertaste startet mit der zuletzt gewählten Rolle.
 2. Nach 3 s castet Sszorak **Tempest** (2 s). Es erscheinen eine Castleiste und ein Ring am Boden, der sich zum Boss zusammenzieht.
 3. 10 Tornados spawnen als **gleichmäßiger Ring mit festen Winkeln**. Sie fliegen alle gerade nach außen, mit 7 Yards/s.
-4. Erst **nach dem ersten Abprallen** am Arenarand driften sie zufällig. Nach 8 s verschwinden sie.
+4. Am Arenarand prallen sie in eine **zufällige Richtung** zurück (bis ±70° um die Richtung zur Mitte). Erst danach driften sie zufällig. Sie bleiben 16 s, also bis zum übernächsten Cast, dadurch sind bis zu 20 gleichzeitig unterwegs.
 5. Alle 8 s kommt ein neuer Cast.
 6. 5 Herzen, jeder Treffer kostet eins, danach 1,5 s unverwundbar. Game Over zeigt die überlebte Zeit und die Anzahl der Tempests.
 7. Im Start- und Game-Over-Bildschirm laufen Tornados als Hintergrund weiter.

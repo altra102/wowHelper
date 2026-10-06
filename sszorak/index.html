@@ -98,7 +98,8 @@ const TORNADO_RADIUS = 1.2;       // Trefferzone am Boden (weißer Ring)
 const TORNADO_HEIGHT = 9;
 const TORNADO_SPEED = 7;
 const TORNADO_WANDER = 1.2;       // max. Drehrate beim zufälligen Driften nach dem ersten Abprallen (rad/s)
-const TORNADO_LIFETIME = 8;
+const TORNADO_LIFETIME = 2 * CAST_INTERVAL; // bleiben bis zum übernächsten Spawn
+const TORNADO_BOUNCE_SPREAD = THREE.MathUtils.degToRad(70); // Abprallen: zufällige Richtung bis ±70° um die Richtung zur Mitte
 const TORNADO_FADE = 0.6;         // Ausblenden am Lebensende, dabei harmlos
 const DEBRIS_PER_TORNADO = 90;
 const GCD = 1;                    // globale Abklingzeit
@@ -604,13 +605,17 @@ function updateTornado(t, dt) {
   p.x += t.vx * dt;
   p.z += t.vz * dt;
 
-  // Abprallen am Arenarand: Geschwindigkeit an der Normalen spiegeln
+  // Abprallen am Arenarand: zufällige Richtung zurück in die Arena
   const d = Math.hypot(p.x, p.z);
   const max = ARENA_RADIUS - TORNADO_RADIUS;
   if (d > max) {
     const nx = p.x / d, nz = p.z / d;
-    const dot = t.vx * nx + t.vz * nz;
-    if (dot > 0) { t.vx -= 2 * dot * nx; t.vz -= 2 * dot * nz; }
+    if (t.vx * nx + t.vz * nz > 0) {
+      const a = Math.atan2(-nx, -nz) + (Math.random() * 2 - 1) * TORNADO_BOUNCE_SPREAD;
+      t.vx = Math.sin(a) * TORNADO_SPEED;
+      t.vz = Math.cos(a) * TORNADO_SPEED;
+      t.turn = 0;
+    }
     t.bounced = true;
     p.x = nx * max;
     p.z = nz * max;
