@@ -70,7 +70,7 @@
   <h1>Sszorak – Tempest</h1>
   <div class="result"></div>
   <div>Tornados entstehen rund um den Boss, prallen am Rand ab und driften zufällig.<br>Jeder Treffer kostet ein Herz.</div>
-  <p class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>1</kbd>–<kbd>4</kbd> Fähigkeiten · Maus ziehen: Kamera drehen · Mausrad: Zoom</p>
+  <p class="hint"><kbd>W</kbd><kbd>S</kbd> laufen · <kbd>A</kbd><kbd>D</kbd> drehen · <kbd>Q</kbd><kbd>E</kbd> seitwärts · <kbd>1</kbd>–<kbd>4</kbd> Fähigkeiten<br>Rechte Maustaste halten: Figur mit der Maus drehen (<kbd>A</kbd><kbd>D</kbd> laufen dann seitwärts) · Linke Maustaste: nur Kamera · beide: vorwärts · Mausrad: Zoom</p>
   <div class="roles"><button data-role="melee">⚔️ Nahkampf</button><button data-role="ranged">🔮 Fernkampf</button></div>
   <p class="hint"><kbd>Leertaste</kbd> startet mit der zuletzt gewählten Rolle</p>
 </div></div>
@@ -110,6 +110,8 @@ const DASH_SPEED = 35;            // Ansturm, Yards/s
 const SPRINT_MULT = 1.7;
 const SPRINT_TIME = 4;
 const BLINK_DIST = 15;
+const TURN_SPEED = Math.PI;        // Drehen mit A/D, rad/s
+const MOUSE_SENS = 0.005;
 
 // ---------- Renderer, Szene, Nachbearbeitung ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -501,7 +503,7 @@ const debrisShader = {
     void main() {
       float d = length(gl_PointCoord - 0.5);
       if (d > 0.5) discard;
-      vec3 col = vKind > 0.75 ? vec3(0.8, 1.0, 1.0) * 1.6 : vec3(0.32, 0.3, 0.26);
+      vec3 col = vKind > 0.75 ? vec3(0.6, 1.0, 0.7) * 1.6 : vec3(0.26, 0.32, 0.24);
       gl_FragColor = vec4(col, smoothstep(0.5, 0.15, d) * vFade * uOpacity);
     }`,
 };
@@ -527,7 +529,7 @@ const dustShader = {
       float r = length(p), a = atan(p.y, p.x);
       float s = sin(a * 5.0 + r * 9.0 - (uTime + uSeed) * 7.0) * 0.5 + 0.5;
       float alpha = s * smoothstep(1.0, 0.45, r) * smoothstep(0.15, 0.45, r) * 0.45 * uOpacity;
-      gl_FragColor = vec4(vec3(0.75, 0.8, 0.72), alpha);
+      gl_FragColor = vec4(vec3(0.55, 0.85, 0.6), alpha);
     }`,
 };
 
@@ -541,8 +543,8 @@ function makeTornadoMesh() {
     ...funnelShader, ...shared, blending, side: THREE.DoubleSide,
     uniforms: { uTime: time, uSeed: { value: seed }, uSpeed: { value: speed }, uOpacity: { value: 1 }, uColor: { value: new THREE.Color(color) } },
   });
-  const outerMat = funnelMat(0x7d97a6, 1, THREE.NormalBlending);
-  const innerMat = funnelMat(0x5f98a8, 1.6, THREE.AdditiveBlending);
+  const outerMat = funnelMat(0x5fae78, 1, THREE.NormalBlending);
+  const innerMat = funnelMat(0x3fbf62, 1.6, THREE.AdditiveBlending);
   const debrisMat = new THREE.ShaderMaterial({
     ...debrisShader, ...shared,
     uniforms: { uTime: time, uSeed: { value: seed }, uPx: pointScale, uOpacity: { value: 1 } },
@@ -584,7 +586,7 @@ function spawnTempest() {
     scene.add(mesh);
     tornados.push({ mesh, vx: Math.sin(dir) * speed, vz: Math.cos(dir) * speed, turn: 0, age: 0 });
   }
-  addShockwave(16, 0x9fe8ff, 0.9);
+  addShockwave(16, 0x8dffb0, 0.9);
   addShockwave(10, 0x3cff6a, 0.6);
 }
 
@@ -659,7 +661,7 @@ function addShockwave(radius, color, duration) {
 // Bodenring, der sich während des Casts um den Boss zusammenzieht
 const castRing = new THREE.Mesh(
   new THREE.RingGeometry(0.85, 1, 96),
-  new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  new THREE.MeshBasicMaterial({ color: 0x8dffb0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
 );
 castRing.rotation.x = -Math.PI / 2;
 castRing.position.y = 0.1;
@@ -803,6 +805,9 @@ let cooldowns = [0, 0, 0, 0], gcd = 0, spell = null, sprintLeft = 0, dashing = f
 const bossEdgeDist = () => Math.hypot(player.position.x, player.position.z) - BOSS_RADIUS - PLAYER_RADIUS;
 const inRange = ab => ab.range === undefined || (bossEdgeDist() <= ab.range && bossEdgeDist() >= (ab.minRange ?? 0));
 
+const facingBoss = () =>
+  Math.sin(player.rotation.y) * -player.position.x + Math.cos(player.rotation.y) * -player.position.z > 0;
+
 function faceBoss() {
   player.rotation.y = Math.atan2(-player.position.x, -player.position.z);
 }
@@ -815,7 +820,7 @@ function useAbility(i) {
   if (!inRange(ab)) { showError(bossEdgeDist() < (ab.minRange ?? 0) ? "Zu nah" : "Außer Reichweite"); return; }
   if (spell && ab.moves) interruptSpell(false);
   if (!ab.offGcd) gcd = GCD;
-  if (ab.range !== undefined) faceBoss();
+  if (ab.range !== undefined && !facingBoss()) { showError("Ziel muss vor dir sein"); return; }
   flashSlot(i);
   if (ab.cast > 0) {
     spell = { ab, i, t: 0 };
@@ -851,22 +856,38 @@ addEventListener("keydown", e => {
   if (state === "playing" && e.code in SLOT_KEYS && !e.repeat) useAbility(SLOT_KEYS[e.code]);
 });
 addEventListener("keyup", e => (keys[e.code] = false));
-addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+addEventListener("blur", () => {
+  for (const k in keys) keys[k] = false;
+  leftDown = rightDown = false;
+});
 
-let camYaw = 0, camPitch = 0.85, camDist = 24;
-let dragging = false;
-renderer.domElement.addEventListener("pointerdown", () => (dragging = true));
-addEventListener("pointerup", () => (dragging = false));
-addEventListener("pointermove", e => {
-  if (!dragging) return;
-  camYaw -= e.movementX * 0.005;
-  camPitch = THREE.MathUtils.clamp(camPitch + e.movementY * 0.005, 0.25, 1.45);
+// Wie in WoW: Kamera hängt hinter der Figur, camOffset ist die zusätzliche Drehung per linker Maustaste
+let camOffset = 0, camPitch = 0.85, camDist = 24;
+let leftDown = false, rightDown = false;
+renderer.domElement.addEventListener("mousedown", e => {
+  if (e.button === 0) leftDown = true;
+  if (e.button === 2) {
+    rightDown = true;
+    player.rotation.y += camOffset;   // Figur dreht sich in Kamerarichtung
+    camOffset = 0;
+  }
+});
+addEventListener("mouseup", e => {
+  if (e.button === 0) leftDown = false;
+  if (e.button === 2) rightDown = false;
+});
+addEventListener("mousemove", e => {
+  if (!leftDown && !rightDown) return;
+  if (rightDown) player.rotation.y -= e.movementX * MOUSE_SENS;
+  else camOffset -= e.movementX * MOUSE_SENS;
+  camPitch = THREE.MathUtils.clamp(camPitch + e.movementY * MOUSE_SENS, 0.25, 1.45);
 });
 addEventListener("wheel", e => (camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.02, 8, 45)));
 addEventListener("contextmenu", e => e.preventDefault());
 
 function updateCamera() {
   const p = player.position;
+  const camYaw = player.rotation.y + Math.PI + camOffset;
   camera.position.set(
     p.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + (Math.random() - 0.5) * shake,
     Math.sin(camPitch) * camDist + (Math.random() - 0.5) * shake,
@@ -944,6 +965,7 @@ let hearts = MAX_HEARTS, elapsed = 0, tempestCount = 0, invuln = 0, castTimer = 
 
 function startGame(newRole) {
   role = newRole;
+  camOffset = 0;
   cooldowns = [0, 0, 0, 0];
   gcd = 0;
   sprintLeft = 0;
@@ -1022,16 +1044,17 @@ function update(dt) {
       shake = Math.max(shake, 0.2);
     }
   } else {
-    // Bewegung relativ zur Kamera
-    const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
-    const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-    const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-    move.set(fx * f - fz * s, 0, fz * f + fx * s);
+    // WoW-Steuerung: A/D drehen, mit gedrückter rechter Maustaste laufen sie seitwärts wie Q/E
+    const left = keys.KeyA || keys.ArrowLeft ? 1 : 0, right = keys.KeyD || keys.ArrowRight ? 1 : 0;
+    if (!rightDown) player.rotation.y += (left - right) * TURN_SPEED * dt;
+    const f = (keys.KeyW || keys.ArrowUp || (leftDown && rightDown) ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    const s = Math.sign((keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0) + (rightDown ? right - left : 0));
+    const yaw = player.rotation.y;
+    move.set(Math.sin(yaw) * f - Math.cos(yaw) * s, 0, Math.cos(yaw) * f + Math.sin(yaw) * s);
     if (move.lengthSq() > 0) {
       if (spell) interruptSpell(true);
       move.normalize().multiplyScalar(PLAYER_SPEED * (sprintLeft > 0 ? SPRINT_MULT : 1) * dt);
       p.add(move);
-      player.rotation.y = Math.atan2(move.x, move.z);
     }
   }
   keepPlayerInBounds();
