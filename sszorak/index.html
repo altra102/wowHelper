@@ -96,10 +96,8 @@ const TORNADOS_PER_CAST = 10;
 const TORNADO_SPAWN_DIST = BOSS_RADIUS + 1;
 const TORNADO_RADIUS = 1.2;       // Trefferzone am Boden (weißer Ring)
 const TORNADO_HEIGHT = 9;
-const TORNADO_SPEED_MIN = 5;
-const TORNADO_SPEED_MAX = 9;
-const TORNADO_SPREAD = 0.5;       // max. Abweichung von „gerade nach außen“ beim Spawn (rad)
-const TORNADO_WANDER = 1.2;       // max. Drehrate beim zufälligen Driften (rad/s)
+const TORNADO_SPEED = 7;
+const TORNADO_WANDER = 1.2;       // max. Drehrate beim zufälligen Driften nach dem ersten Abprallen (rad/s)
 const TORNADO_LIFETIME = 8;
 const TORNADO_FADE = 0.6;         // Ausblenden am Lebensende, dabei harmlos
 const DEBRIS_PER_TORNADO = 90;
@@ -575,16 +573,14 @@ function makeTornadoMesh() {
 let tornados = [];
 
 function spawnTempest() {
-  const offset = Math.random() * Math.PI * 2;
+  // Gleichmäßiger Ring, alle fliegen gleich schnell gerade nach außen
   for (let i = 0; i < TORNADOS_PER_CAST; i++) {
-    const a = offset + (i / TORNADOS_PER_CAST) * Math.PI * 2;
-    const dir = a + (Math.random() * 2 - 1) * TORNADO_SPREAD;
-    const speed = THREE.MathUtils.lerp(TORNADO_SPEED_MIN, TORNADO_SPEED_MAX, Math.random());
+    const a = (i / TORNADOS_PER_CAST) * Math.PI * 2;
     const mesh = makeTornadoMesh();
     mesh.position.set(Math.sin(a) * TORNADO_SPAWN_DIST, 0, Math.cos(a) * TORNADO_SPAWN_DIST);
     mesh.scale.setScalar(0.01);
     scene.add(mesh);
-    tornados.push({ mesh, vx: Math.sin(dir) * speed, vz: Math.cos(dir) * speed, turn: 0, age: 0 });
+    tornados.push({ mesh, vx: Math.sin(a) * TORNADO_SPEED, vz: Math.cos(a) * TORNADO_SPEED, turn: 0, age: 0, bounced: false });
   }
   addShockwave(16, 0x8dffb0, 0.9);
   addShockwave(10, 0x3cff6a, 0.6);
@@ -599,8 +595,8 @@ function removeTornado(t) {
 function updateTornado(t, dt) {
   t.age += dt;
 
-  // Zufälliges Driften: die Drehrate läuft als Random Walk, die Geschwindigkeit bleibt gleich
-  t.turn = THREE.MathUtils.clamp(t.turn + (Math.random() * 2 - 1) * TORNADO_WANDER * 4 * dt, -TORNADO_WANDER, TORNADO_WANDER);
+  // Zufälliges Driften erst nach dem ersten Abprallen: die Drehrate läuft als Random Walk, das Tempo bleibt gleich
+  if (t.bounced) t.turn = THREE.MathUtils.clamp(t.turn + (Math.random() * 2 - 1) * TORNADO_WANDER * 4 * dt, -TORNADO_WANDER, TORNADO_WANDER);
   const r = t.turn * dt, cos = Math.cos(r), sin = Math.sin(r);
   [t.vx, t.vz] = [t.vx * cos - t.vz * sin, t.vx * sin + t.vz * cos];
 
@@ -615,6 +611,7 @@ function updateTornado(t, dt) {
     const nx = p.x / d, nz = p.z / d;
     const dot = t.vx * nx + t.vz * nz;
     if (dot > 0) { t.vx -= 2 * dot * nx; t.vz -= 2 * dot * nz; }
+    t.bounced = true;
     p.x = nx * max;
     p.z = nz * max;
   }
