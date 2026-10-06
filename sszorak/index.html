@@ -19,10 +19,27 @@
   #hearts .lost { color: #3a3a3a; }
   #hearts .full { color: #e0303a; text-shadow: 0 0 8px rgba(255,40,60,.7); }
   #stats { margin-top: 4px; font-size: 15px; opacity: .85; }
-  #cast { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); width: 300px; display: none; }
+  #cast { position: fixed; left: 50%; bottom: 34%; transform: translateX(-50%); width: 300px; display: none; }
   #cast .label { font-size: 14px; margin-bottom: 4px; text-shadow: 0 1px 3px #000; }
   #cast .bar { height: 16px; background: #1b1b1b; border: 1px solid #000; box-shadow: 0 0 0 1px #6b5a2a; }
   #cast .fill { height: 100%; width: 0; background: linear-gradient(#f3c94a, #b8861b); }
+  #pcast { position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%); width: 260px; display: none; }
+  #pcast .label { font-size: 13px; margin-bottom: 3px; text-shadow: 0 1px 3px #000; }
+  #pcast .bar { height: 12px; background: #1b1b1b; border: 1px solid #000; box-shadow: 0 0 0 1px #4b3a7a; }
+  #pcast .fill { height: 100%; width: 0; background: linear-gradient(#c38bff, #7a3fd1); }
+  #actionbar { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: none; gap: 8px; }
+  .slot { position: relative; width: 64px; height: 64px; border: 2px solid #5a4a24; border-radius: 6px; background: linear-gradient(#26302b, #121815); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 8px #000; }
+  .slot .icon { font-size: 26px; line-height: 1; }
+  .slot .name { font-size: 9px; opacity: .85; margin-top: 3px; text-align: center; }
+  .slot .key { position: absolute; top: 2px; left: 5px; font-size: 12px; font-weight: bold; text-shadow: 0 1px 2px #000; }
+  .slot .cd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(0,0,0,.65); }
+  .slot .cdtext { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; text-shadow: 0 1px 3px #000; }
+  .slot.oor { box-shadow: inset 0 0 0 64px rgba(200,0,0,.35); }
+  .slot.pressed { border-color: #f3c94a; }
+  #error { position: fixed; top: 16%; left: 50%; transform: translateX(-50%); color: #ff4a3a; font-size: 20px; font-weight: bold; text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity .4s; pointer-events: none; }
+  #overlay .roles { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+  #overlay button { font: inherit; font-size: 16px; padding: 10px 22px; color: #e8e6df; background: rgba(20,40,26,.8); border: 1px solid #3cff6a; border-radius: 6px; cursor: pointer; }
+  #overlay button:hover { box-shadow: 0 0 12px rgba(60,255,110,.5); }
   #flash { position: fixed; inset: 0; background: radial-gradient(transparent 40%, rgba(200,0,0,.55)); opacity: 0; pointer-events: none; transition: opacity .35s; }
   #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); }
   #overlay .box { text-align: center; max-width: 440px; line-height: 1.5; }
@@ -45,13 +62,17 @@
   <div id="stats"></div>
 </div>
 <div id="cast"><div class="label">Sszorak wirkt <b>Tempest</b></div><div class="bar"><div class="fill"></div></div></div>
+<div id="pcast"><div class="label"></div><div class="bar"><div class="fill"></div></div></div>
+<div id="actionbar"></div>
+<div id="error"></div>
 <div id="flash"></div>
 <div id="overlay"><div class="box">
   <h1>Sszorak – Tempest</h1>
   <div class="result"></div>
   <div>Tornados entstehen rund um den Boss, prallen am Rand ab und driften zufällig.<br>Jeder Treffer kostet ein Herz.</div>
-  <p class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · Maus ziehen: Kamera drehen · Mausrad: Zoom</p>
-  <p><b>Klick oder <kbd>Leertaste</kbd> zum Starten</b></p>
+  <p class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>1</kbd>–<kbd>4</kbd> Fähigkeiten · Maus ziehen: Kamera drehen · Mausrad: Zoom</p>
+  <div class="roles"><button data-role="melee">⚔️ Nahkampf</button><button data-role="ranged">🔮 Fernkampf</button></div>
+  <p class="hint"><kbd>Leertaste</kbd> startet mit der zuletzt gewählten Rolle</p>
 </div></div>
 
 <script type="module">
@@ -79,9 +100,16 @@ const TORNADO_SPEED_MIN = 5;
 const TORNADO_SPEED_MAX = 9;
 const TORNADO_SPREAD = 0.5;       // max. Abweichung von „gerade nach außen“ beim Spawn (rad)
 const TORNADO_WANDER = 1.2;       // max. Drehrate beim zufälligen Driften (rad/s)
-const TORNADO_LIFETIME = 16;
+const TORNADO_LIFETIME = 8;
 const TORNADO_FADE = 0.6;         // Ausblenden am Lebensende, dabei harmlos
 const DEBRIS_PER_TORNADO = 90;
+const GCD = 1;                    // globale Abklingzeit
+const MELEE_RANGE = 5;            // Yards ab Bossrand
+const RANGED_RANGE = 40;
+const DASH_SPEED = 35;            // Ansturm, Yards/s
+const SPRINT_MULT = 1.7;
+const SPRINT_TIME = 4;
+const BLINK_DIST = 15;
 
 // ---------- Renderer, Szene, Nachbearbeitung ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -399,6 +427,15 @@ const player = new THREE.Group();
 }
 scene.add(player);
 
+// Leuchtkugel in der Hand während eines Zaubers
+const castOrb = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xc38bff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+);
+castOrb.position.set(0.45, 1.5, 0.35);
+castOrb.visible = false;
+player.add(castOrb);
+
 // ---------- Tornados ----------
 // Trichter-Profil: Radius in Abhängigkeit der Höhe (t = 0 unten … 1 oben)
 const FUNNEL_BOTTOM = 0.9, FUNNEL_FLARE = 1.5, FUNNEL_POW = 2.2;
@@ -630,12 +667,188 @@ castRing.visible = false;
 scene.add(castRing);
 
 let shake = 0;
+let bossFlash = 0;
+
+const fxSphereGeo = new THREE.SphereGeometry(1, 16, 12);
+const slashGeo = new THREE.RingGeometry(0.8, 2.2, 24, 1, -Math.PI / 2 - 0.9, 1.8);   // Bogen nach vorne (+z)
+const whirlGeo = new THREE.RingGeometry(1.2, 3, 48);
+const beamGeo = new THREE.CylinderGeometry(0.9, 0.9, 30, 16, 1, true);
+
+const additive = color => new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+
+// Kurzlebiges Objekt: tick(k) bekommt den Fortschritt 0…1, danach wird es entfernt
+function addTimedFx(object, mat, duration, tick) {
+  scene.add(object);
+  let age = 0;
+  effects.push(dt => {
+    age += dt;
+    const k = Math.min(age / duration, 1);
+    tick(k, dt);
+    mat.opacity = 1 - k;
+    if (k < 1) return true;
+    scene.remove(object);
+    mat.dispose();
+    return false;
+  });
+}
+
+function addBurst(pos, color, size, duration = 0.35) {
+  const mat = additive(color);
+  const mesh = new THREE.Mesh(fxSphereGeo, mat);
+  mesh.position.copy(pos);
+  addTimedFx(mesh, mat, duration, k => mesh.scale.setScalar(0.2 + k * size));
+}
+
+// Punkt auf der Bossoberfläche, der zum Spieler zeigt
+function bossHitPoint(y) {
+  const p = player.position, d = Math.hypot(p.x, p.z) || 1;
+  return new THREE.Vector3(p.x / d * (BOSS_RADIUS - 0.5), y, p.z / d * (BOSS_RADIUS - 0.5));
+}
+
+function hitBoss(color, size) {
+  bossFlash = 1;
+  addBurst(bossHitPoint(2), color, size);
+}
+
+function swingFx(geo, color, duration, spin) {
+  const mat = additive(color);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  const holder = new THREE.Group();
+  holder.add(mesh);
+  holder.position.set(player.position.x, 1, player.position.z);
+  holder.rotation.y = player.rotation.y;
+  addTimedFx(holder, mat, duration, (k, dt) => {
+    holder.scale.setScalar(0.8 + 0.4 * k);
+    holder.rotation.y += spin * dt;
+  });
+}
+
+function boltFx(color, size, speed, onHit) {
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const bolt = new THREE.Mesh(fxSphereGeo, mat);
+  bolt.scale.setScalar(0.35 * size);
+  bolt.position.set(player.position.x, 1.5, player.position.z);
+  scene.add(bolt);
+  const target = new THREE.Vector3(0, 3, 0), toT = new THREE.Vector3();
+  let trail = 0;
+  effects.push(dt => {
+    toT.subVectors(target, bolt.position);
+    const dist = toT.length();
+    if (dist < BOSS_RADIUS * 0.6) {
+      scene.remove(bolt);
+      mat.dispose();
+      onHit();
+      return false;
+    }
+    bolt.position.addScaledVector(toT.normalize(), Math.min(speed * dt, dist));
+    if ((trail += dt) > 0.02) {
+      trail = 0;
+      addBurst(bolt.position, color, 0.4 * size, 0.25);
+    }
+    return true;
+  });
+}
+
+function beamFx(color) {
+  const target = bossHitPoint(0);
+  const mat = additive(color);
+  const beam = new THREE.Mesh(beamGeo, mat);
+  beam.position.set(target.x, 15, target.z);
+  addTimedFx(beam, mat, 0.5, k => beam.scale.set(1 - 0.8 * k, 1, 1 - 0.8 * k));
+  addBurst(new THREE.Vector3(target.x, 1.5, target.z), color, 4, 0.5);
+  bossFlash = 1;
+  shake = Math.max(shake, 0.3);
+}
+
+function blink() {
+  const p = player.position;
+  addBurst(new THREE.Vector3(p.x, 1, p.z), 0xc38bff, 1.5);
+  p.x += Math.sin(player.rotation.y) * BLINK_DIST;
+  p.z += Math.cos(player.rotation.y) * BLINK_DIST;
+  keepPlayerInBounds();
+  addBurst(new THREE.Vector3(p.x, 1, p.z), 0xc38bff, 1.5);
+}
+
+// ---------- Fähigkeiten ----------
+// Treffer am Boss haben keine Wirkung, es geht nur ums Üben von Rotation und Bewegung.
+// range = max. Abstand zum Bossrand; ohne range braucht die Fähigkeit kein Ziel.
+// moves = bricht einen laufenden Zauber ab.
+const ABILITIES = {
+  melee: [
+    { name: "Schlag", icon: "⚔️", cast: 0, cd: 0, range: MELEE_RANGE,
+      use: () => { swingFx(slashGeo, 0xffffff, 0.18, 0); hitBoss(0xffffff, 1); } },
+    { name: "Klingensturm", icon: "🌀", cast: 0, cd: 8, range: MELEE_RANGE,
+      use: () => { swingFx(whirlGeo, 0xf3c94a, 0.35, 14); hitBoss(0xf3c94a, 1.6); } },
+    { name: "Ansturm", icon: "💥", cast: 0, cd: 12, range: 25, minRange: 8, moves: true,
+      use: () => (dashing = true) },
+    { name: "Sprint", icon: "💨", cast: 0, cd: 20, offGcd: true,
+      use: () => (sprintLeft = SPRINT_TIME) },
+  ],
+  ranged: [
+    { name: "Arkanlanze", icon: "🔮", cast: 1.2, cd: 0, range: RANGED_RANGE,
+      use: () => boltFx(0xc38bff, 1.4, 40, () => hitBoss(0xc38bff, 1.6)) },
+    { name: "Arkansplitter", icon: "✨", cast: 0, cd: 6, range: RANGED_RANGE,
+      use: () => [0, 100, 200].forEach(ms => setTimeout(() => boltFx(0x9fe8ff, 0.7, 55, () => hitBoss(0x9fe8ff, 0.8)), ms)) },
+    { name: "Sternsturz", icon: "☄️", cast: 2.5, cd: 12, range: RANGED_RANGE,
+      use: () => beamFx(0xd9a8ff) },
+    { name: "Blinzeln", icon: "✴️", cast: 0, cd: 15, offGcd: true, moves: true,
+      use: blink },
+  ],
+};
+
+let role = "melee";
+let cooldowns = [0, 0, 0, 0], gcd = 0, spell = null, sprintLeft = 0, dashing = false;
+
+const bossEdgeDist = () => Math.hypot(player.position.x, player.position.z) - BOSS_RADIUS - PLAYER_RADIUS;
+const inRange = ab => ab.range === undefined || (bossEdgeDist() <= ab.range && bossEdgeDist() >= (ab.minRange ?? 0));
+
+function faceBoss() {
+  player.rotation.y = Math.atan2(-player.position.x, -player.position.z);
+}
+
+function useAbility(i) {
+  const ab = ABILITIES[role][i];
+  if (dashing) return;
+  if (cooldowns[i] > 0) { showError("Noch nicht bereit"); return; }
+  if (!ab.offGcd && (gcd > 0 || spell)) return;
+  if (!inRange(ab)) { showError(bossEdgeDist() < (ab.minRange ?? 0) ? "Zu nah" : "Außer Reichweite"); return; }
+  if (spell && ab.moves) interruptSpell(false);
+  if (!ab.offGcd) gcd = GCD;
+  if (ab.range !== undefined) faceBoss();
+  flashSlot(i);
+  if (ab.cast > 0) {
+    spell = { ab, i, t: 0 };
+    pcastLabel.textContent = ab.name;
+    pcastEl.style.display = "block";
+    castOrb.visible = true;
+    return;
+  }
+  cooldowns[i] = ab.cd;
+  ab.use();
+}
+
+function finishSpell() {
+  const { ab, i } = spell;
+  interruptSpell(false);
+  cooldowns[i] = ab.cd;
+  ab.use();
+}
+
+function interruptSpell(showMsg) {
+  spell = null;
+  pcastEl.style.display = "none";
+  castOrb.visible = false;
+  if (showMsg) showError("Unterbrochen");
+}
 
 // ---------- Eingabe & Kamera ----------
 const keys = {};
+const SLOT_KEYS = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 };
 addEventListener("keydown", e => {
   keys[e.code] = true;
-  if (e.code === "Space" && state !== "playing") startGame();
+  if (e.code === "Space" && state !== "playing") startGame(role);
+  if (state === "playing" && e.code in SLOT_KEYS && !e.repeat) useAbility(SLOT_KEYS[e.code]);
 });
 addEventListener("keyup", e => (keys[e.code] = false));
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
@@ -670,7 +883,18 @@ const castFill = castEl.querySelector(".fill");
 const flashEl = document.getElementById("flash");
 const overlay = document.getElementById("overlay");
 const resultEl = overlay.querySelector(".result");
-overlay.addEventListener("click", () => startGame());
+const pcastEl = document.getElementById("pcast");
+const pcastLabel = pcastEl.querySelector(".label");
+const pcastFill = pcastEl.querySelector(".fill");
+const actionbarEl = document.getElementById("actionbar");
+const errorEl = document.getElementById("error");
+
+for (const btn of overlay.querySelectorAll("button[data-role]")) {
+  btn.addEventListener("click", () => {
+    btn.blur();   // sonst löst die Leertaste den Button im Spiel erneut aus
+    startGame(btn.dataset.role);
+  });
+}
 
 function renderHud() {
   heartsEl.innerHTML = Array.from({ length: MAX_HEARTS }, (_, i) =>
@@ -678,11 +902,55 @@ function renderHud() {
   statsEl.textContent = `Zeit: ${elapsed.toFixed(1)} s · Tempests: ${tempestCount}`;
 }
 
+let errorTimer;
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.opacity = 1;
+  clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => (errorEl.style.opacity = 0), 1000);
+}
+
+function buildActionBar() {
+  actionbarEl.innerHTML = ABILITIES[role].map((ab, i) => `
+    <div class="slot">
+      <span class="key">${i + 1}</span>
+      <span class="icon">${ab.icon}</span>
+      <span class="name">${ab.name}</span>
+      <div class="cd"></div><div class="cdtext"></div>
+    </div>`).join("");
+}
+
+function flashSlot(i) {
+  const slot = actionbarEl.children[i];
+  slot.classList.add("pressed");
+  setTimeout(() => slot.classList.remove("pressed"), 150);
+}
+
+function renderActionBar() {
+  ABILITIES[role].forEach((ab, i) => {
+    const slot = actionbarEl.children[i];
+    const gcdLeft = ab.offGcd ? 0 : gcd;
+    const left = Math.max(cooldowns[i], gcdLeft);
+    const total = cooldowns[i] >= gcdLeft ? ab.cd : GCD;
+    slot.querySelector(".cd").style.height = left > 0 ? `${(left / total) * 100}%` : "0";
+    slot.querySelector(".cdtext").textContent = cooldowns[i] > GCD ? Math.ceil(cooldowns[i]) : "";
+    slot.classList.toggle("oor", !inRange(ab));
+  });
+}
+
 // ---------- Spielzustand ----------
 let state = "start";
 let hearts = MAX_HEARTS, elapsed = 0, tempestCount = 0, invuln = 0, castTimer = 0, casting = false;
 
-function startGame() {
+function startGame(newRole) {
+  role = newRole;
+  cooldowns = [0, 0, 0, 0];
+  gcd = 0;
+  sprintLeft = 0;
+  dashing = false;
+  interruptSpell(false);
+  buildActionBar();
+  actionbarEl.style.display = "flex";
   tornados.forEach(removeTornado);
   tornados = [];
   hearts = MAX_HEARTS;
@@ -706,6 +974,9 @@ function endGame() {
   casting = false;
   castRing.visible = false;
   castEl.style.display = "none";
+  interruptSpell(false);
+  dashing = false;
+  actionbarEl.style.display = "none";
   player.visible = true;
   resultEl.innerHTML = `Überlebt: <b>${elapsed.toFixed(1)} s</b> · ${tempestCount} Tempests`;
   overlay.style.display = "flex";
@@ -722,26 +993,64 @@ function takeHit() {
 }
 
 const move = new THREE.Vector3();
+let trailTimer = 0;
 
-function update(dt) {
-  elapsed += dt;
-
-  // Bewegung relativ zur Kamera
-  const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
-  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-  const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-  move.set(fx * f - fz * s, 0, fz * f + fx * s);
-  if (move.lengthSq() > 0) {
-    move.normalize().multiplyScalar(PLAYER_SPEED * dt);
-    player.position.add(move);
-    player.rotation.y = Math.atan2(move.x, move.z);
-  }
-
-  // Spieler bleibt in der Arena und außerhalb des Bosses
+// Spieler bleibt in der Arena und außerhalb des Bosses
+function keepPlayerInBounds() {
   const p = player.position;
   const d = Math.hypot(p.x, p.z);
   if (d > ARENA_RADIUS - PLAYER_RADIUS) p.multiplyScalar((ARENA_RADIUS - PLAYER_RADIUS) / d);
   if (d < BOSS_RADIUS + PLAYER_RADIUS) p.multiplyScalar((BOSS_RADIUS + PLAYER_RADIUS) / Math.max(d, 0.001));
+}
+
+function update(dt) {
+  elapsed += dt;
+  gcd = Math.max(gcd - dt, 0);
+  cooldowns = cooldowns.map(c => Math.max(c - dt, 0));
+  sprintLeft = Math.max(sprintLeft - dt, 0);
+  const p = player.position;
+
+  if (dashing) {
+    // Ansturm: auf den Boss zu, bis Nahkampfreichweite erreicht ist
+    faceBoss();
+    const step = Math.min(DASH_SPEED * dt, bossEdgeDist() - 1);
+    p.x += Math.sin(player.rotation.y) * step;
+    p.z += Math.cos(player.rotation.y) * step;
+    if (bossEdgeDist() <= 1.01) {
+      dashing = false;
+      hitBoss(0xffffff, 1.2);
+      shake = Math.max(shake, 0.2);
+    }
+  } else {
+    // Bewegung relativ zur Kamera
+    const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
+    const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+    move.set(fx * f - fz * s, 0, fz * f + fx * s);
+    if (move.lengthSq() > 0) {
+      if (spell) interruptSpell(true);
+      move.normalize().multiplyScalar(PLAYER_SPEED * (sprintLeft > 0 ? SPRINT_MULT : 1) * dt);
+      p.add(move);
+      player.rotation.y = Math.atan2(move.x, move.z);
+    }
+  }
+  keepPlayerInBounds();
+
+  // Spur hinter dem Spieler bei Ansturm und Sprint
+  if ((dashing || sprintLeft > 0) && (trailTimer += dt) > 0.04) {
+    trailTimer = 0;
+    addBurst(new THREE.Vector3(p.x, 0.6, p.z), dashing ? 0xffffff : 0xf3c94a, 0.6, 0.3);
+  }
+
+  // Eigener Zauber
+  if (spell) {
+    spell.t += dt;
+    const k = Math.min(spell.t / spell.ab.cast, 1);
+    pcastFill.style.width = `${k * 100}%`;
+    castOrb.scale.setScalar(0.12 + 0.25 * k);
+    if (k >= 1) finishSpell();
+  }
+  renderActionBar();
 
   boss.rotation.y = Math.atan2(p.x, p.z);
 
@@ -793,10 +1102,15 @@ function updateWorld(dt) {
     return false;
   });
   if (state !== "playing" && tornados.length === 0) spawnTempest();
-  effects = effects.filter(fx => fx(dt));
+  // Effekte, die während des Durchlaufs neu entstehen, kommen erst im nächsten Frame dran
+  const running = effects;
+  effects = [];
+  effects = running.filter(fx => fx(dt)).concat(effects);
 
   const charge = casting ? 1 - castTimer / CAST_TIME : 0;
-  bossSkin.emissiveIntensity = casting ? 0.15 + 0.35 * charge * (0.7 + 0.3 * Math.sin(time.value * 30)) : 0;
+  const castGlow = casting ? 0.15 + 0.35 * charge * (0.7 + 0.3 * Math.sin(time.value * 30)) : 0;
+  bossSkin.emissiveIntensity = castGlow + bossFlash * 0.6;
+  bossFlash *= Math.exp(-dt * 12);
   bossLight.intensity = 40 + 120 * charge;
   for (const c of crystals) {
     c.rotation.y += dt;
