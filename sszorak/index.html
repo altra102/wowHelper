@@ -407,24 +407,263 @@ const boss = new THREE.Group();
 scene.add(boss);
 
 // ---------- Spieler ----------
+// Zwei Figuren aus Grundformen, sichtbar je nach Rolle. Vorne ist lokal +z.
+function part(parent, geo, mat, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  parent.add(m);
+  return m;
+}
+
+// Gelenk (z. B. Schulter, Hüfte), an dem ein Körperteil hängt und schwingen kann
+function joint(parent, x, y, z) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  parent.add(g);
+  return g;
+}
+
+function makeCape(color, w, h) {
+  const geo = new THREE.PlaneGeometry(w, h, 1, 6);
+  geo.translate(0, -h / 2, 0);
+  // Unten etwas breiter und nach hinten gewölbt
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const k = -pos.getY(i) / h;
+    pos.setX(i, pos.getX(i) * (1 + k * 0.5));
+    pos.setZ(i, -k * k * 0.15);
+  }
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.8, side: THREE.DoubleSide }));
+}
+
+// Schwertkämpfer: Plattenrüstung, gehörnter Helm mit leuchtendem Visier, Runenklinge
+const warrior = new THREE.Group();
+const warriorRig = {};
+{
+  const plate = new THREE.MeshStandardMaterial({ color: 0xb4bccc, metalness: 0.5, roughness: 0.3, emissive: 0x1c2638, emissiveIntensity: 0.5 });
+  const darkPlate = new THREE.MeshStandardMaterial({ color: 0x3a4052, metalness: 0.5, roughness: 0.4 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe0b04a, metalness: 0.6, roughness: 0.3, emissive: 0x3a2808, emissiveIntensity: 0.6 });
+  const leather = new THREE.MeshStandardMaterial({ color: 0x2a1d16, roughness: 0.9 });
+  const cloth = new THREE.MeshStandardMaterial({ color: 0x9b1c1c, roughness: 0.75 });
+  const horn = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.5 });
+  const glow = new THREE.MeshBasicMaterial({ color: 0x8fdcff });
+  const body = joint(warrior, 0, 0, 0);
+  warriorRig.body = body;
+
+  // Beine
+  warriorRig.legs = [-1, 1].map(side => {
+    const hip = joint(body, side * 0.16, 0.9, 0);
+    part(hip, new THREE.CylinderGeometry(0.12, 0.1, 0.5, 10), darkPlate, 0, -0.25, 0);
+    part(hip, new THREE.SphereGeometry(0.085, 10, 8), gold, 0, -0.5, 0.05);
+    part(hip, new THREE.CylinderGeometry(0.1, 0.11, 0.35, 10), plate, 0, -0.68, 0);
+    part(hip, new THREE.BoxGeometry(0.2, 0.12, 0.32), plate, 0, -0.84, 0.05);
+    return hip;
+  });
+
+  // Rumpf mit Brustplatte, Gürtel und Wappenrock
+  part(body, new THREE.CylinderGeometry(0.34, 0.26, 0.62, 12), plate, 0, 1.24, 0);
+  const chest = part(body, new THREE.SphereGeometry(0.3, 14, 10), plate, 0, 1.33, 0.08);
+  chest.scale.set(1.05, 0.8, 0.7);
+  part(body, new THREE.OctahedronGeometry(0.07), glow, 0, 1.36, 0.31).scale.set(1, 1.4, 0.5);
+  part(body, new THREE.CylinderGeometry(0.29, 0.29, 0.1, 12), leather, 0, 0.94, 0);
+  part(body, new THREE.BoxGeometry(0.14, 0.12, 0.06), gold, 0, 0.94, 0.28);
+  const tabard = part(body, new THREE.BoxGeometry(0.3, 0.45, 0.03), cloth, 0, 0.68, 0.24);
+  tabard.rotation.x = -0.08;
+
+  // Schulterpanzer mit Goldrand und Dornen
+  for (const side of [-1, 1]) {
+    // Gestaffelte Platten, nach außen geneigt
+    for (let i = 0; i < 2; i++) {
+      const pad = part(body, new THREE.SphereGeometry(0.2 - i * 0.03, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), i ? gold : plate, side * (0.4 + i * 0.06), 1.5 - i * 0.1, 0);
+      pad.scale.set(1, 0.55, 1.1);
+      pad.rotation.z = -side * (0.35 + i * 0.25);
+    }
+    const spike = part(body, new THREE.ConeGeometry(0.045, 0.22, 6), darkPlate, side * 0.44, 1.66, 0);
+    spike.rotation.z = -side * 0.6;
+  }
+
+  // Gehörnter Helm mit leuchtendem Visierschlitz
+  part(body, new THREE.CylinderGeometry(0.1, 0.12, 0.12, 10), darkPlate, 0, 1.62, 0);
+  const helm = part(body, new THREE.SphereGeometry(0.21, 16, 12), plate, 0, 1.8, 0);
+  helm.scale.set(1, 1.1, 1.05);
+  part(body, new THREE.BoxGeometry(0.26, 0.035, 0.05), glow, 0, 1.8, 0.2);
+  const nasal = part(body, new THREE.BoxGeometry(0.04, 0.14, 0.04), gold, 0, 1.74, 0.22);
+  nasal.rotation.x = -0.2;
+  const crest = part(body, new THREE.BoxGeometry(0.04, 0.12, 0.34), gold, 0, 2.0, -0.02);
+  crest.rotation.x = 0.1;
+  for (const side of [-1, 1]) {
+    const h = part(body, new THREE.ConeGeometry(0.06, 0.38, 8), horn, side * 0.27, 1.95, -0.02);
+    h.rotation.z = -side * 0.9;
+    h.rotation.x = -0.2;
+  }
+
+  // Arme; rechts das Schwert, links ein Rundschild
+  warriorRig.arms = [-1, 1].map(side => {
+    const sh = joint(body, side * 0.42, 1.48, 0);
+    part(sh, new THREE.CylinderGeometry(0.09, 0.08, 0.32, 10), darkPlate, 0, -0.18, 0);
+    part(sh, new THREE.SphereGeometry(0.09, 10, 8), gold, 0, -0.36, 0);
+    part(sh, new THREE.CylinderGeometry(0.085, 0.1, 0.3, 10), plate, 0, -0.52, 0);
+    part(sh, new THREE.SphereGeometry(0.08, 10, 8), leather, 0, -0.7, 0.02);
+    return sh;
+  });
+  const sword = joint(warriorRig.arms[1], 0, -0.7, 0.04);
+  sword.rotation.x = 1.15;
+  part(sword, new THREE.CylinderGeometry(0.03, 0.03, 0.22, 8), leather, 0, 0, 0);
+  part(sword, new THREE.SphereGeometry(0.045, 8, 6), gold, 0, -0.13, 0);
+  part(sword, new THREE.BoxGeometry(0.34, 0.05, 0.06), gold, 0, 0.12, 0);
+  part(sword, new THREE.BoxGeometry(0.15, 1.05, 0.025), plate, 0, 0.66, 0);
+  const tip = part(sword, new THREE.ConeGeometry(0.106, 0.2, 4), plate, 0, 1.28, 0);
+  tip.scale.z = 0.3;
+  tip.rotation.y = Math.PI / 4;
+  part(sword, new THREE.BoxGeometry(0.03, 0.9, 0.03), glow, 0, 0.64, 0);
+  const shield = joint(warriorRig.arms[0], -0.1, -0.5, 0.08);
+  shield.rotation.y = -1.1;
+  const disc = part(shield, new THREE.CylinderGeometry(0.32, 0.32, 0.05, 20), darkPlate, 0, 0, 0);
+  disc.rotation.x = Math.PI / 2;
+  const rim = part(shield, new THREE.TorusGeometry(0.32, 0.03, 6, 24), gold, 0, 0, 0);
+  rim.position.z = 0.02;
+  part(shield, new THREE.SphereGeometry(0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), gold, 0, 0, 0.03).rotation.x = Math.PI / 2;
+
+  warriorRig.cape = makeCape(0x7a1515, 0.6, 1.15);
+  warriorRig.cape.position.set(0, 1.55, -0.26);
+  body.add(warriorRig.cape);
+}
+
+// Zauberer: Kapuzenrobe mit leuchtenden Augen, Stab mit Kristall, schwebende Runensteine
+const mage = new THREE.Group();
+const mageRig = {};
+{
+  const robe = new THREE.MeshStandardMaterial({ color: 0x4a2a8a, roughness: 0.7, emissive: 0x1a0b3a, emissiveIntensity: 0.6, side: THREE.DoubleSide });
+  const robeDark = new THREE.MeshStandardMaterial({ color: 0x130a26, roughness: 0.9 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8a63a, metalness: 0.9, roughness: 0.25 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.85 });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xc38bff });
+  const eyeGlow = new THREE.MeshBasicMaterial({ color: 0x9ff3ff });
+  const body = joint(mage, 0, 0, 0);
+  mageRig.body = body;
+
+  // Robe: nach unten weit, mit Goldsaum und leuchtender Runenbahn vorne
+  const skirt = new THREE.Group();
+  skirt.position.y = 1.1;
+  body.add(skirt);
+  mageRig.skirt = skirt;
+  part(skirt, new THREE.CylinderGeometry(0.26, 0.48, 1.1, 16, 1, true), robe, 0, -0.55, 0);
+  const hem = part(skirt, new THREE.TorusGeometry(0.47, 0.03, 6, 28), gold, 0, -1.07, 0);
+  hem.rotation.x = Math.PI / 2;
+  const rune = part(skirt, new THREE.BoxGeometry(0.06, 0.9, 0.02), glow, 0, -0.55, 0.37);
+  rune.rotation.x = 0.2;
+  part(body, new THREE.CylinderGeometry(0.3, 0.27, 0.55, 14), robe, 0, 1.36, 0);
+  part(body, new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14), gold, 0, 1.12, 0);
+  part(body, new THREE.OctahedronGeometry(0.06), glow, 0, 1.12, 0.29);
+
+  // Schulterstücke mit Edelsteinen und Stehkragen
+  for (const side of [-1, 1]) {
+    const pad = part(body, new THREE.SphereGeometry(0.14, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), gold, side * 0.33, 1.58, 0);
+    pad.scale.set(1.2, 0.6, 1.1);
+    pad.rotation.z = -side * 0.3;
+    part(body, new THREE.OctahedronGeometry(0.05), glow, side * 0.36, 1.68, 0.1);
+  }
+  // Stehkragen, vorne offen
+  part(body, new THREE.CylinderGeometry(0.3, 0.22, 0.3, 14, 1, true, Math.PI * 0.3, Math.PI * 1.4), robe, 0, 1.75, 0);
+
+  // Kapuze, vorne offen, darin ein dunkles Gesicht mit leuchtenden Augen, dazu eine Spitze nach hinten
+  const hood = part(body, new THREE.SphereGeometry(0.24, 16, 12, Math.PI / 2 + 0.7, Math.PI * 2 - 1.4), robe, 0, 1.85, -0.02);
+  hood.scale.set(1, 1.1, 1.1);
+  const face = part(body, new THREE.SphereGeometry(0.17, 14, 10), robeDark, 0, 1.82, 0.04);
+  face.scale.set(1, 1.05, 0.8);
+  for (const side of [-1, 1]) part(body, new THREE.SphereGeometry(0.03, 8, 6), eyeGlow, side * 0.065, 1.85, 0.17).scale.set(1.4, 0.7, 1);
+  const tipCone = part(body, new THREE.ConeGeometry(0.16, 0.45, 12), robe, 0, 2.05, -0.2);
+  tipCone.rotation.x = -1.0;
+
+  // Arme in weiten Ärmeln; der rechte hält den Stab
+  mageRig.arms = [-1, 1].map(side => {
+    const sh = joint(body, side * 0.36, 1.52, 0);
+    part(sh, new THREE.CylinderGeometry(0.08, 0.15, 0.6, 12, 1, true), robe, 0, -0.32, 0);
+    part(sh, new THREE.TorusGeometry(0.14, 0.02, 6, 16), gold, 0, -0.6, 0).rotation.x = Math.PI / 2;
+    part(sh, new THREE.SphereGeometry(0.06, 8, 6), robeDark, 0, -0.66, 0);
+    return sh;
+  });
+  const staff = joint(mageRig.arms[1], 0, -0.66, 0.02);
+  staff.rotation.x = 0.25;
+  part(staff, new THREE.CylinderGeometry(0.035, 0.03, 2.0, 8), wood, 0, 0.35, 0);
+  part(staff, new THREE.CylinderGeometry(0.05, 0.05, 0.08, 8), gold, 0, 0.0, 0);
+  part(staff, new THREE.CylinderGeometry(0.05, 0.04, 0.1, 8), gold, 0, 1.3, 0);
+  const claw = part(staff, new THREE.TorusGeometry(0.15, 0.025, 6, 16, Math.PI * 1.4), gold, 0, 1.52, 0);
+  claw.rotation.z = -Math.PI * 0.2;
+  claw.rotation.y = Math.PI / 2;
+  mageRig.gem = part(staff, new THREE.OctahedronGeometry(0.1), glow, 0, 1.52, 0);
+  mageRig.gem.scale.y = 1.6;
+  mageRig.staff = staff;
+
+  // Schwebende Runensteine um den Zauberer
+  mageRig.orbiters = [0, 1, 2].map(i => {
+    const o = part(body, new THREE.OctahedronGeometry(0.07), glow, 0, 0, 0);
+    o.userData.phase = (i / 3) * Math.PI * 2;
+    return o;
+  });
+
+  mageRig.cape = makeCape(0x1c0e38, 0.55, 1.3);
+  mageRig.cape.position.set(0, 1.62, -0.24);
+  body.add(mageRig.cape);
+}
+
 const player = new THREE.Group();
 {
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(PLAYER_RADIUS * 0.8, 1, 4, 12),
-    new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.4, emissive: 0x1d4ed8, emissiveIntensity: 0.3 })
-  );
-  body.position.y = 0.9;
-  body.castShadow = true;
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.5, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  nose.rotation.x = Math.PI / 2;
-  nose.position.set(0, 1.2, 0.5);
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(PLAYER_RADIUS + 0.1, PLAYER_RADIUS + 0.25, 40),
     new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.9 })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.04;
-  player.add(body, nose, ring);
+  mage.visible = false;
+  // Kleines Licht vor der Figur, damit sie in der dunklen Arena lesbar bleibt
+  const heroLight = new THREE.PointLight(0xfff1dd, 4, 5, 1.5);
+  heroLight.position.set(0, 2.4, 1.6);
+  player.add(warrior, mage, ring, heroLight);
+}
+
+// Animation: Laufen aus der Positionsänderung, dazu Schwertschlag, Klingensturm-Drehung und Stab heben beim Zaubern
+const lastPlayerPos = new THREE.Vector3();
+let walkPhase = 0, walkAmt = 0, swingAnim = 0, spinAnim = 0, staffRaise = 0;
+
+function animatePlayer(dt) {
+  const speed = player.position.distanceTo(lastPlayerPos) / Math.max(dt, 1e-4);
+  lastPlayerPos.copy(player.position);
+  walkAmt = THREE.MathUtils.damp(walkAmt, Math.min(speed / PLAYER_SPEED, 1), 10, dt);
+  walkPhase += dt * (2 + Math.min(speed, 15) * 1.3);
+  const t = time.value, sw = Math.sin(walkPhase) * walkAmt, bob = Math.abs(Math.sin(walkPhase)) * walkAmt;
+
+  if (warrior.visible) {
+    const r = warriorRig;
+    swingAnim = Math.max(swingAnim - dt * 3, 0);
+    spinAnim = Math.max(spinAnim - dt / 0.35, 0);
+    r.body.position.y = bob * 0.06 + Math.sin(t * 2) * 0.01;
+    r.body.rotation.y = spinAnim > 0 ? (1 - spinAnim) * Math.PI * 2 : 0;
+    r.legs[0].rotation.x = sw * 0.7;
+    r.legs[1].rotation.x = -sw * 0.7;
+    r.arms[0].rotation.x = -sw * 0.5;
+    // Schlag: kurz ausholen über den Kopf, dann nach vorne durchziehen
+    const u = 1 - swingAnim;
+    const strike = swingAnim === 0 ? 0 : u < 0.3 ? -2.6 * (u / 0.3) : -2.6 + 2.6 * Math.min((u - 0.3) / 0.3, 1);
+    r.arms[1].rotation.x = sw * 0.3 + strike;
+    r.cape.rotation.x = 0.1 + walkAmt * 0.5 + Math.sin(t * 3) * 0.03;
+  } else {
+    const r = mageRig;
+    staffRaise = THREE.MathUtils.damp(staffRaise, spell ? 1 : 0, 12, dt);
+    r.body.position.y = bob * 0.04 + Math.sin(t * 2) * 0.02;
+    r.skirt.rotation.x = walkAmt * 0.12;
+    r.arms[0].rotation.x = -sw * 0.4;
+    r.arms[1].rotation.x = -1.3 * staffRaise + sw * 0.2 * (1 - staffRaise);
+    r.gem.rotation.y += dt * 2;
+    r.cape.rotation.x = 0.1 + walkAmt * 0.5 + Math.sin(t * 3) * 0.03;
+    for (const o of r.orbiters) {
+      const a = t * 1.5 + o.userData.phase;
+      o.position.set(Math.cos(a) * 0.65, 1.2 + Math.sin(t * 2 + o.userData.phase) * 0.15, Math.sin(a) * 0.65);
+      o.rotation.y += dt * 3;
+    }
+  }
 }
 scene.add(player);
 
@@ -433,9 +672,9 @@ const castOrb = new THREE.Mesh(
   new THREE.SphereGeometry(1, 16, 12),
   new THREE.MeshBasicMaterial({ color: 0xc38bff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
 );
-castOrb.position.set(0.45, 1.5, 0.35);
+castOrb.position.set(0, 1.52, 0);
 castOrb.visible = false;
-player.add(castOrb);
+mageRig.staff.add(castOrb);
 
 // ---------- Tornados ----------
 // Trichter-Profil: Radius in Abhängigkeit der Höhe (t = 0 unten … 1 oben)
@@ -715,6 +954,8 @@ function hitBoss(color, size) {
 }
 
 function swingFx(geo, color, duration, spin) {
+  swingAnim = 1;
+  if (spin) spinAnim = 1;
   const mat = additive(color);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.x = -Math.PI / 2;
@@ -967,6 +1208,8 @@ let hearts = MAX_HEARTS, elapsed = 0, tempestCount = 0, invuln = 0, castTimer = 
 
 function startGame(newRole) {
   role = newRole;
+  warrior.visible = role === "melee";
+  mage.visible = !warrior.visible;
   camOffset = 0;
   cooldowns = [0, 0, 0, 0];
   gcd = 0;
@@ -1121,6 +1364,7 @@ function update(dt) {
 function updateWorld(dt) {
   time.value += dt;
   for (const t of tornados) updateTornado(t, dt);
+  animatePlayer(dt);
   tornados = tornados.filter(t => {
     if (t.age < TORNADO_LIFETIME) return true;
     removeTornado(t);

@@ -31,6 +31,12 @@
 | Mausrad | Zoom |
 | 1–4 | Fähigkeiten |
 
+**Figuren.** Je nach Rolle gibt es eine eigene Figur, gebaut aus Grundformen (`warrior` / `mage` mit `warriorRig` / `mageRig`):
+- Nahkampf: Schwertkämpfer in Plattenrüstung mit gehörntem Helm, leuchtendem Visier, Runenschwert, Rundschild und rotem Umhang.
+- Fernkampf: Zauberer in violetter Kapuzenrobe mit leuchtenden Augen, Stab mit Kristall und drei schwebenden Runensteinen.
+- `animatePlayer(dt)` animiert Laufen (Tempo aus der Positionsänderung), Atmen und den Umhang. Beim Schlag holt der Krieger aus, bei Klingensturm dreht er sich. Der Zauberer hebt beim Zaubern den Stab, die Leuchtkugel (`castOrb`) sitzt an der Stabspitze.
+- Ein kleines Punktlicht vor der Figur sorgt dafür, dass sie in der dunklen Arena lesbar bleibt.
+
 **Fähigkeiten.** Sie treffen nur den Boss und haben **keine Wirkung**, nur Effekte. Das ist so gewollt, sie dienen nur zum Üben.
 
 | Taste | Nahkampf | Fernkampf |
@@ -48,8 +54,8 @@ Regeln:
 
 ## Code-Aufbau
 
-Alles steckt in einer Datei (`sszorak/index.html`, ca. 1165 Zeilen) und ist in Abschnitte mit `// ---------- Name ----------` gegliedert:
-Werte, Renderer/Szene/Nachbearbeitung, Licht, Arena, Boss, Spieler, Tornados, Effekte, Fähigkeiten, Eingabe & Kamera, HUD, Spielzustand, Loop.
+Alles steckt in einer Datei (`sszorak/index.html`, ca. 1415 Zeilen) und ist in Abschnitte mit `// ---------- Name ----------` gegliedert:
+Werte, Renderer/Szene/Nachbearbeitung, Licht, Arena, Boss, Spieler (Figuren + Animation), Tornados, Effekte, Fähigkeiten, Eingabe & Kamera, HUD, Spielzustand, Loop.
 
 Wichtige Punkte:
 - **Konstanten** stehen oben unter „Werte“: Tornado-Anzahl, Tempo, Lebensdauer, Cast-Timer, Reichweiten usw.
