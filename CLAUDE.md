@@ -3,6 +3,8 @@
 Kleine interaktive Übungs-Seiten für World-of-Warcraft-Bossmechaniken, gebaut mit Three.js.
 Jede Seite trainiert eine bestimmte Mechanik, nicht den ganzen Bosskampf.
 
+Aktueller Stand, Testvorgehen, Deploy und offene Punkte: siehe `HANDOVER.md`.
+
 ## Struktur
 
 - Pro Boss ein Unterordner, kleingeschrieben (z. B. `sszorak/`), darin eine `index.html`.
